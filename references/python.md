@@ -63,10 +63,15 @@ def redact(text: str) -> str:
     return text
 
 
+def _jsonable(obj):
+    """SDK objects (pydantic models) as their fields, anything else as text."""
+    return obj.model_dump() if hasattr(obj, "model_dump") else str(obj)
+
+
 def set_content(span, key: str, value) -> None:
     """Records input.value / output.value: redacted, capped, flagged when cut. Never raises."""
     try:
-        text = value if isinstance(value, str) else json.dumps(value, default=str)
+        text = value if isinstance(value, str) else json.dumps(value, default=_jsonable)
         text = redact(text)
         span.set_attribute(f"{key}.truncated", len(text) > MAX_CHARS)
         span.set_attribute(key, text[:MAX_CHARS])
