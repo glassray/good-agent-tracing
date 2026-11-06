@@ -1,0 +1,73 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; background: #fff; }
+  #shot { width: 1000px; padding: 0; }
+  .term { background: #15161a; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px #2a2c33; }
+  .bar { height: 34px; background: #22242a; display: flex; align-items: center; gap: 8px; padding: 0 14px; }
+  .bar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .bar span { color: #8b8f99; font: 13px -apple-system, sans-serif; margin-left: 10px; }
+  pre { margin: 0; padding: 18px 22px 22px; height: 700px; color: #d7dae0; font: 15px/22px Menlo, "SF Mono", monospace; white-space: pre; }
+  .dim { color: #7d828c; } .b { font-weight: 700; color: #fff; } .p { color: #7fd1a8; }
+  .miss { color: #ff7b72; } .part { color: #e3b341; } .na { color: #7d828c; } .num { color: #9aa0aa; }
+  .cur { background: #d7dae0; color: #15161a; }
+</style>
+<div id="shot"><div class="term">
+  <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>travel-assistant</span></div>
+  <pre id="out"></pre>
+</div></div>
+<script>
+const CMD = 'claude -p "Audit the tracing in agent.py"';
+const rows = [
+  [1, 'One task per trace', 'missing', 'agent.py:31  answer() opens no span'],
+  [2, 'Steps under one root span', 'missing', 'agent.py:15  auto-instrumentation only'],
+  [3, 'Ids that connect traces', 'missing', 'agent.py:31  conversation_id never used'],
+  [4, 'Metadata to filter by', 'missing', 'agent.py:13  TracerProvider() with no Resource'],
+  [5, 'Request and answer on root', 'missing', 'agent.py:37  returns the text, records nothing'],
+  [6, 'Each model call', 'partial', 'agent.py:15  model and tokens; content capture off'],
+  [7, 'Instructions as text', 'partial', 'agent.py:18  SYSTEM_PROMPT sent, no hash'],
+  [8, 'Tool call input and output', 'missing', 'agent.py:26  search results never recorded'],
+  [9, 'RAG', 'n/a', 'no retriever'],
+  [10, 'Empty results and failures', 'missing', 'agent.py:28  .get("results", [])'],
+  [11, 'Final answer as structured fields', 'missing', 'agent.py:37  the decision exists only as prose'],
+  [12, 'Which version ran', 'missing', 'agent.py:13  no service.version'],
+  [13, 'Human feedback', 'missing', 'no feedback path'],
+  [14, 'Cut repetition, not evidence', 'missing', 'agent.py:34  full history resent, no batching'],
+  [15, 'Tracing never breaks the agent', 'missing', 'agent.py:14  SimpleSpanProcessor blocks the agent'],
+  [16, 'Secrets and personal data', 'missing', 'agent.py:13  no redacting span processor'],
+];
+const cls = { missing: 'miss', partial: 'part', 'n/a': 'na' };
+const pad = (s, n) => s + ' '.repeat(Math.max(0, n - s.length));
+/** Each line of output with the second it appears. */
+const lines = [];
+lines.push([2.0, '<span class="p">⏺</span> Skill(good-agent-tracing)']);
+lines.push([2.4, '<span class="p">⏺</span> Read(agent.py)']);
+lines.push([2.8, '<span class="p">⏺</span> Read(references/rules.md)']);
+lines.push([3.3, '']);
+lines.push([3.3, '<span class="b">Tracing audit: travel assistant (agent.py)</span>']);
+lines.push([3.3, '']);
+lines.push([3.6, '<span class="dim">' + pad(' #', 5) + pad('Item', 36) + pad('Status', 10) + 'Evidence</span>']);
+rows.forEach(([n, item, st, ev], i) => {
+  lines.push([3.9 + i * 0.16, '<span class="num">' + pad(String(n).padStart(2), 5) + '</span>' + pad(item, 36) +
+    '<span class="' + cls[st] + '">' + pad(st, 10) + '</span><span class="dim">' + ev + '</span>']);
+});
+const tEnd = 3.9 + rows.length * 0.16;
+lines.push([tEnd + 0.4, '']);
+lines.push([tEnd + 0.4, '<span class="miss">13 missing</span> · <span class="part">2 partial</span> · <span class="na">1 n/a</span>']);
+lines.push([tEnd + 0.9, '']);
+lines.push([tEnd + 0.9, '<span class="b">Fix first</span>']);
+lines.push([tEnd + 1.3, ' 1. Items 2 and 1   open a root span per user message in answer()']);
+lines.push([tEnd + 1.6, ' 2. Items 8 and 10  wrap web_search in a tool span with every result']);
+lines.push([tEnd + 1.9, ' 3. Item 5          set the question and the answer on the root']);
+lines.push([tEnd + 2.1, ' <span class="dim">…</span>']);
+/** Draws the terminal as it looks t seconds in. */
+window.render = (t) => {
+  const typed = Math.min(CMD.length, Math.max(0, Math.floor((t - 0.3) * 28)));
+  const blink = Math.floor(t * 2) % 2 === 0;
+  let html = '<span class="p">$</span> ' + CMD.slice(0, typed).replace(/</g, '&lt;');
+  if (t < 1.8) html += blink || typed < CMD.length ? '<span class="cur"> </span>' : ' ';
+  for (const [at, text] of lines) if (t >= at) html += '\n' + text;
+  document.getElementById('out').innerHTML = html;
+};
+window.render(99);
+</script>

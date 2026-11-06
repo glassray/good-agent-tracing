@@ -11,7 +11,7 @@ see what the agent did and where it went wrong.
 [![Version 0.1.0](https://img.shields.io/badge/version-0.1.0-informational)](SKILL.md)
 [![Glassray](https://img.shields.io/badge/by-Glassray-black)](https://www.glassray.ai)
 
-<img src="docs/before-after.png" alt="Before: two loose traces, one per model call, with no search and no conversation id. After: one trace for the visa question with both model calls and the web search nested under it" width="680">
+<img src="docs/demo.gif" alt="Claude Code runs the skill on a travel assistant: 13 of 16 tracing items are missing and 2 are partial, each with the file and line, followed by what to fix first" width="780">
 
 </div>
 
@@ -42,19 +42,25 @@ trace.get_tracer_provider().add_span_processor(SimpleSpanProcessor(OTLPSpanExpor
 AnthropicInstrumentor().instrument()
 ```
 
-The audit finds 13 of the 16 items missing and 2 partial (one doesn't apply). The rows that matter
-most ([full report](examples/audit-before.md)):
+With that file saved as `agent.py` and asked to "Audit the tracing in agent.py", Claude Code with this skill finds 13 of the 16 items
+missing and 2 partial (one doesn't apply). The animation at the top of this page is that run, with
+the evidence shortened to fit; the [full output](examples/audit-claude-code.md) also lists what to fix
+first and two bugs outside tracing. The rows that matter most, as it wrote them:
 
 | # | Item | Status | Evidence | What's wrong |
 | --- | --- | --- | --- | --- |
-| 2 | Every step under one root span | missing | no span around `answer()` (`before.py:31`) | You can't see which search fed which reply |
-| 5 | Request and answer on the root | missing | no root span | The trace list shows no question and no answer |
-| 8 | Every tool call's input and output | missing | `web_search` (`before.py:26`) has no span | When a reply is wrong, you can't tell whether the search missed the rule or the model ignored it |
-| 10 | Empty results and failures | missing | `.get("results", [])` (`before.py:28`) | A search that failed inside a 200 looks the same as one that found nothing |
+| 2 | Steps under one root span | missing | `agent.py:15` auto-instrumentation only; `agent.py:32-35` loop | Each pass through the tool loop is its own root-level trace; you can't see which search fed which prompt |
+| 5 | Request and answer on root | missing | `agent.py:37` returns the text, records nothing | No span holds the question or the final answer; the trace list shows bare model calls |
+| 8 | Tool call input and output | missing | `agent.py:26-28`, called at `:42` | Search results are never recorded as a tool span; when an answer is wrong you can't tell a search that missed the rule from an agent that ignored it |
+| 10 | Empty results and failures | missing | `agent.py:28` `.get("results", [])` | A 500, a changed payload shape and a genuine no-hit all become `[]`, with no error status anywhere |
 
 [`examples/after.py`](examples/after.py) is the same agent after Fix mode. The prompt, model and
 tools are unchanged. One user message is now one trace: the question and the reply on the root,
-each model call with its full prompt and tokens, and each search with every result. The audit of
+each model call with its full prompt and tokens, and each search with every result.
+
+<img src="docs/before-after.png" alt="Before: two loose traces, one per model call, with no search and no conversation id. After: one trace for the visa question with both model calls and the web search nested under it" width="680">
+
+A hand-checked audit of
 the fixed version has 13 items ok, 2 partial and 1 that doesn't apply
 ([full report](examples/audit-after.md)). The two partial items are left on purpose: structuring
 the reply would mean changing the prompt, and the system prompt is still recorded on every model
@@ -157,8 +163,8 @@ and asks before sending data anywhere.
 | [references/python.md](references/python.md) | OpenTelemetry setup and helpers for Python |
 | [references/typescript.md](references/typescript.md) | OpenTelemetry setup and helpers for TypeScript |
 | [references/audit.md](references/audit.md) | The audit report format |
-| [examples/](examples/) | The travel assistant before and after, and both audits |
-| [docs/](docs/) | The image at the top of this page |
+| [examples/](examples/) | The travel assistant before and after, Claude Code's audit of the first, and hand-checked audits of both |
+| [docs/](docs/) | The demo animation (`demo.html` renders it) and the before-and-after image |
 
 ## License
 
